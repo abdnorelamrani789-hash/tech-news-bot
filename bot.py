@@ -1,77 +1,50 @@
-# bot.py
-import os
-import json
 import feedparser
 import requests
+import time
 
-# ==========================
-# جلب التوكن و Chat ID من GitHub Secrets
-# ==========================
-BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN")
-CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID")
+# ----------- إعدادات البوت -----------
+TELEGRAM_BOT_TOKEN = "8642429277:AAFRm12sxHrBKIetg54IOyyW4TEcng3PEV8"
+TELEGRAM_CHAT_ID = -1003814843921  # Chat ID الرقمي للقناة
+DELAY_BETWEEN_MESSAGES = 2  # ثواني
 
-# ==========================
-# لائحة RSS feeds
-# ==========================
-FEEDS_FILE = "feeds.json"
-POSTED_FILE = "posted.json"
+# ----------- قائمة المواقع (RSS) -----------
+RSS_FEEDS = [
+    "https://techcrunch.com/feed/",
+    "https://news.ycombinator.com/rss",
+    # تقدر تزيد أي موقع RSS مجاني
+]
 
-# تحميل الأخبار المنشورة لتجنب التكرار
-try:
-    with open(POSTED_FILE, "r") as f:
-        posted = json.load(f)
-except:
-    posted = []
+# ----------- وظيفة إرسال رسالة للبوت -----------
+def send_telegram_message(text):
+    url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
+    payload = {"chat_id": TELEGRAM_CHAT_ID, "text": text}
+    response = requests.post(url, data=payload)
+    result = response.json()
+    
+    if result.get("ok"):
+        print(f"تم نشر: {text}")
+    else:
+        print(f"خطأ في النشر: {text} - {result}")
 
-# قراءة RSS feeds
-with open(FEEDS_FILE, "r") as f:
-    feeds = json.load(f)
+# ----------- وظيفة جلب الأخبار -----------
+def fetch_news():
+    news_items = []
+    for feed_url in RSS_FEEDS:
+        feed = feedparser.parse(feed_url)
+        for entry in feed.entries[:5]:  # آخر 5 أخبار من كل feed
+            news_items.append({
+                "title": entry.title,
+                "link": entry.link
+            })
+    return news_items
 
-# كلمات مفتاحية بسيطة لتصنيف الأخبار
-CATEGORIES = {
-    "AI": ["AI", "Artificial Intelligence", "ChatGPT", "machine learning", "deep learning"],
-    "Cybersecurity": ["security", "cyber", "hacking", "malware", "vulnerability"],
-    "Cloud": ["cloud", "AWS", "Azure", "GCP", "serverless"],
-    "Programming": ["Python", "JavaScript", "Java", "programming", "code"]
-}
+# ----------- الوظيفة الرئيسية -----------
+def main():
+    news_list = fetch_news()
+    for news in news_list:
+        message_text = f"{news['title']}\n{news['link']}"
+        send_telegram_message(message_text)
+        time.sleep(DELAY_BETWEEN_MESSAGES)  # تأخير بين كل رسالة
 
-def classify(title, summary):
-    title_lower = title.lower()
-    summary_lower = summary.lower()
-    for cat, keywords in CATEGORIES.items():
-        for kw in keywords:
-            if kw.lower() in title_lower or kw.lower() in summary_lower:
-                return cat
-    return "Other"
-
-# ==========================
-# معالجة كل feed
-# ==========================
-for feed_url in feeds:
-    feed = feedparser.parse(feed_url)
-    for entry in feed.entries:
-        news_id = entry.link
-        if news_id in posted:
-            continue  # تخطي الأخبار اللي سبق نشرها
-
-        title = entry.title
-        summary = entry.summary[:300] + "..."  # ملخص قصير
-        category = classify(title, summary)
-
-        # توليد الرسالة
-        message = f"📢 [{category}] {title}\n{summary}\n{entry.link}"
-
-        # إرسال لتليجرام
-        url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
-        response = requests.post(url, data={"chat_id": CHAT_ID, "text": message})
-        if response.status_code == 200:
-            print(f"تم نشر: {title}")
-        else:
-            print(f"خطأ في النشر: {title} - {response.text}")
-
-        # تخزين الخبر المنشور
-        posted.append(news_id)
-
-# تحديث ملف posted.json
-with open(POSTED_FILE, "w") as f:
-    json.dump(posted, f)
+if __name__ == "__main__":
+    main()
