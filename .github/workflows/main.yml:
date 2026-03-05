@@ -1,0 +1,24 @@
+name: Tech News Bot
+
+on:
+  schedule:
+    - cron: "0 8,14,20 * * *"  # 3 مرات في اليوم UTC
+  workflow_dispatch:
+
+jobs:
+  run-bot:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.x'
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run Tech News Bot
+        run: python bot.py
